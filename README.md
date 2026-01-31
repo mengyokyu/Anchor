@@ -1,6 +1,6 @@
 # Anchor
 
-**LSP for AI Agents** — Code intelligence that gives AI agents a structural map of your codebase.
+**LSP for AI Agents** 
 
 > **v0.1.0-alpha** — Read-only. Write capabilities coming soon.
 
