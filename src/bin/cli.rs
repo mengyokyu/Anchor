@@ -1,16 +1,24 @@
-//! Anchor CLI - Command line interface for testing and debugging.
+//! Anchor CLI - Code intelligence for AI agents.
+//!
+//! Usage:
+//!   anchor overview              # Codebase overview
+//!   anchor search <query>        # Search symbols/files
+//!   anchor context <query>       # Get full context
+//!   anchor deps <symbol>         # Dependencies
+//!   anchor stats                 # Graph statistics
+//!   anchor build                 # Rebuild graph
 
-use anchor::{Anchor, Blueprint, BlueprintMeta};
+use anchor::{build_graph, get_context, graph_search, anchor_dependencies, anchor_stats, CodeGraph};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "anchor")]
-#[command(about = "Anchor CLI - Deterministic structural memory for AI", long_about = None)]
+#[command(about = "Anchor - Code intelligence for AI agents", long_about = None)]
 struct Cli {
-    /// Path to the .anchor directory (default: ./.anchor)
-    #[arg(short, long, default_value = ".anchor")]
-    path: PathBuf,
+    /// Project root directory (default: current directory)
+    #[arg(short, long, default_value = ".")]
+    root: PathBuf,
 
     #[command(subcommand)]
     command: Commands,
@@ -18,61 +26,40 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Initialize a new Anchor store
-    Init,
+    /// Show codebase overview - files, key symbols, entry points
+    Overview,
 
-    /// Create a new blueprint
-    Create {
-        /// Blueprint ID (unique identifier)
-        id: String,
+    /// Search for symbols or files
+    Search {
+        /// Query string (symbol name or file path)
+        query: String,
 
-        /// Blueprint content (or read from stdin if not provided)
-        #[arg(short, long)]
-        content: Option<String>,
-
-        /// Blueprint type (default: generic)
-        #[arg(short = 't', long, default_value = "generic")]
-        blueprint_type: String,
-
-        /// Human-readable name
-        #[arg(short, long)]
-        name: Option<String>,
+        /// How many hops to traverse in the graph
+        #[arg(short, long, default_value = "1")]
+        depth: usize,
     },
 
-    /// Read a blueprint
-    Get {
-        /// Blueprint ID
-        id: String,
+    /// Get full context for a symbol (code + dependencies + dependents)
+    Context {
+        /// Symbol name or file path
+        query: String,
 
-        /// Output only the content (no frontmatter)
-        #[arg(long)]
-        content_only: bool,
+        /// Intent: find, understand, modify, refactor, overview
+        #[arg(short, long, default_value = "understand")]
+        intent: String,
     },
 
-    /// Update a blueprint's content
-    Update {
-        /// Blueprint ID
-        id: String,
-
-        /// New content
-        content: String,
+    /// Show what depends on a symbol and what it depends on
+    Deps {
+        /// Symbol name
+        symbol: String,
     },
 
-    /// Delete a blueprint
-    Delete {
-        /// Blueprint ID
-        id: String,
+    /// Show graph statistics
+    Stats,
 
-        /// Skip confirmation
-        #[arg(short, long)]
-        force: bool,
-    },
-
-    /// List all blueprints
-    List,
-
-    /// Show storage info
-    Info,
+    /// Rebuild the code graph from scratch
+    Build,
 }
 
 fn main() {
@@ -85,86 +72,121 @@ fn main() {
 }
 
 fn run(cli: Cli) -> anchor::Result<()> {
+    let root = cli.root.canonicalize().unwrap_or(cli.root);
+    let cache_path = root.join(".anchor").join("graph.bin");
+
+    // Load or build graph
+    let graph = if cache_path.exists() {
+        CodeGraph::load(&cache_path)?
+    } else {
+        eprintln!("Building graph (first run)...");
+        let graph = build_graph(&root);
+        std::fs::create_dir_all(cache_path.parent().unwrap())?;
+        graph.save(&cache_path)?;
+        graph
+    };
+
     match cli.command {
-        Commands::Init => {
-            let anchor = Anchor::init(&cli.path)?;
-            println!("✓ Initialized Anchor store at {:?}", anchor.root());
-        }
+        Commands::Overview => {
+            let stats = graph.stats();
+            println!("Anchor - Codebase Overview");
+            println!("══════════════════════════");
+            println!();
+            println!("Files:   {}", stats.file_count);
+            println!("Symbols: {}", stats.symbol_count);
+            println!("Edges:   {}", stats.total_edges);
+            println!();
 
-        Commands::Create {
-            id,
-            content,
-            blueprint_type,
-            name,
-        } => {
-            let anchor = Anchor::open(&cli.path)?;
-
-            let content = content.unwrap_or_else(|| {
-                format!("# {}\n\nAdd your content here.", name.as_ref().unwrap_or(&id))
-            });
-
-            let meta = BlueprintMeta::new(&id)
-                .with_type(&blueprint_type)
-                .with_name(name.as_ref().unwrap_or(&id));
-
-            let bp = Blueprint::with_meta(meta, &content);
-            
-            // Write directly through storage (we need to add this method)
-            anchor.create_blueprint(&id, &content)?;
-
-            println!("✓ Created blueprint: {}", id);
-        }
-
-        Commands::Get { id, content_only } => {
-            let anchor = Anchor::open(&cli.path)?;
-            let bp = anchor.get_blueprint(&id)?;
-
-            if content_only {
-                println!("{}", bp.content());
-            } else {
-                println!("{}", bp.to_markdown());
+            // Show top-level structure
+            let result = graph_search(&graph, "src/", 0);
+            if !result.matched_files.is_empty() {
+                println!("Structure:");
+                for file in result.matched_files.iter().take(15) {
+                    println!("  {}", file.display());
+                }
+                if result.matched_files.len() > 15 {
+                    println!("  ... and {} more", result.matched_files.len() - 15);
+                }
             }
-        }
+            println!();
 
-        Commands::Update { id, content } => {
-            let anchor = Anchor::open(&cli.path)?;
-            anchor.update_blueprint(&id, &content)?;
-            println!("✓ Updated blueprint: {}", id);
-        }
-
-        Commands::Delete { id, force } => {
-            if !force {
-                println!("Are you sure you want to delete '{}'? Use --force to confirm.", id);
-                return Ok(());
-            }
-
-            let anchor = Anchor::open(&cli.path)?;
-            anchor.delete_blueprint(&id)?;
-            println!("✓ Deleted blueprint: {}", id);
-        }
-
-        Commands::List => {
-            let anchor = Anchor::open(&cli.path)?;
-            let blueprints = anchor.list_blueprints()?;
-
-            if blueprints.is_empty() {
-                println!("No blueprints found.");
-            } else {
-                println!("Blueprints ({}):", blueprints.len());
-                for id in blueprints {
-                    println!("  - {}", id);
+            // Show entry points (main functions)
+            let mains = graph_search(&graph, "main", 0);
+            if !mains.symbols.is_empty() {
+                println!("Entry points:");
+                for sym in mains.symbols.iter().filter(|s| s.name == "main") {
+                    println!("  {} in {}", sym.name, sym.file.display());
                 }
             }
         }
 
-        Commands::Info => {
-            let anchor = Anchor::open(&cli.path)?;
-            let blueprints = anchor.list_blueprints()?;
+        Commands::Search { query, depth } => {
+            let result = graph_search(&graph, &query, depth);
 
-            println!("Anchor Store Info");
-            println!("─────────────────");
-            println!("Path: {:?}", anchor.root());
-            println!("Blueprints: {}", blueprints.len());
+            if result.symbols.is_empty() && result.matched_files.is_empty() {
+                println!("No results for '{}'", query);
+                return Ok(());
+            }
+
+            println!("Search: '{}' (depth={})", query, depth);
+            println!();
+
+            if !result.matched_files.is_empty() {
+                println!("Files:");
+                for file in &result.matched_files {
+                    println!("  {}", file.display());
+                }
+                println!();
+            }
+
+            if !result.symbols.is_empty() {
+                println!("Symbols:");
+                for sym in &result.symbols {
+                    println!("  {} ({}) - {}:{}", sym.name, sym.kind, sym.file.display(), sym.line);
+                }
+                println!();
+            }
+
+            if !result.connections.is_empty() {
+                println!("Connections:");
+                for conn in result.connections.iter().take(20) {
+                    println!("  {} --[{}]--> {}", conn.from, conn.relationship, conn.to);
+                }
+                if result.connections.len() > 20 {
+                    println!("  ... and {} more", result.connections.len() - 20);
+                }
+            }
+        }
+
+        Commands::Context { query, intent } => {
+            let result = get_context(&graph, &query, &intent);
+            let json = serde_json::to_string_pretty(&result).unwrap_or_default();
+            println!("{}", json);
+        }
+
+        Commands::Deps { symbol } => {
+            let result = anchor_dependencies(&graph, &symbol);
+            let json = serde_json::to_string_pretty(&result).unwrap_or_default();
+            println!("{}", json);
+        }
+
+        Commands::Stats => {
+            let result = anchor_stats(&graph);
+            let json = serde_json::to_string_pretty(&result).unwrap_or_default();
+            println!("{}", json);
+        }
+
+        Commands::Build => {
+            eprintln!("Rebuilding graph...");
+            let graph = build_graph(&root);
+            std::fs::create_dir_all(cache_path.parent().unwrap())?;
+            graph.save(&cache_path)?;
+
+            let stats = graph.stats();
+            println!("✓ Graph built");
+            println!("  Files:   {}", stats.file_count);
+            println!("  Symbols: {}", stats.symbol_count);
+            println!("  Edges:   {}", stats.total_edges);
         }
     }
 
