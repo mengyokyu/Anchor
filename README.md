@@ -1,163 +1,118 @@
-
-
 # Anchor
 
-**Agent Server Protocol (ASP)**
+**LSP for AI Agents** — Code intelligence that gives AI agents a structural map of your codebase.
+
+> **v0.1.0-alpha** — Read-only. Write capabilities coming soon.
+
+---
+
+## Install
+
+```bash
+# macOS / Linux
+curl -fsSL https://tharun-10dragneel.github.io/Anchor/install.sh | bash
+```
+
+Or build from source:
+```bash
+git clone https://github.com/Tharun-10Dragneel/Anchor.git
+cd Anchor
+cargo build --release
+```
+
+---
+
+## Quick Start
+
+```bash
+# Build the code graph for your project
+anchor build
+
+# See codebase structure
+anchor overview
+
+# Search for a symbol
+anchor search "UserService"
+
+# Get full context (code + dependencies + dependents)
+anchor context "login"
+
+# See what depends on a symbol
+anchor deps "Config"
+
+# Graph stats
+anchor stats
+```
 
 ---
 
 ## What is Anchor?
 
-**Anchor is an Agent Server Protocol (ASP): a local background daemon that provides AI coding agents with deterministic context and safe write capabilities.**
+AI agents are good at *reasoning* about code, but bad at:
+- Knowing the real structure of a codebase
+- Finding symbols without grep spam
+- Understanding relationships between files
 
-AI agents like Claude Code and Cursor are very good at *thinking* about code, but they are still bad at:
+**Anchor solves this.**
 
-* knowing the real structure of a codebase
-* navigating files safely
-* applying multi-file changes without breaking things
+It builds a persistent graph of your codebase that agents can query instantly:
+- Where is this symbol defined?
+- What calls this function?
+- What does this module depend on?
 
-Anchor exists to solve exactly that.
-
----
-
-## The Core Idea
-
-Anchor separates responsibilities cleanly:
-
-### Agent = Brain
-
-* Understands intent
-* Reasons about logic
-* Decides *what* should change
-* Generates domain-specific code
-
-### Anchor = Body
-
-* Maintains a structural map of the codebase
-* Knows where symbols live and how files are connected
-* Applies edits safely on disk
-* Prevents broken builds and corrupted files
-
-**Agents think. Anchor acts.**
+No guessing. No grep. Deterministic answers.
 
 ---
 
-## Why “Agent Server Protocol” (ASP)?
+## How It Works
 
-Just like **Language Server Protocol (LSP)** standardized how editors talk to language engines, **ASP standardizes how AI agents talk to a codebase-aware execution engine**.
+```
+┌─────────────┐     query      ┌─────────────┐
+│   AI Agent  │ ─────────────▶ │   Anchor    │
+│  (reasoning)│ ◀───────────── │   (graph)   │
+└─────────────┘    context     └─────────────┘
+```
 
-Anchor is:
-
-* long-running
-* stateful
-* authoritative
-* queried by agents
-
-Agents come and go.
-Anchor stays.
-
----
-
-## The Problems Anchor Solves
-
-AI coding agents today suffer from systemic issues:
-
-### 1. Hallucinated Structure
-
-Agents guess file locations, dependencies, and ownership because they don’t have a real map.
-
-### 2. Context Rot
-
-Understanding of the codebase decays across long or multi-step tasks.
-
-### 3. Probabilistic Semantics
-
-Semantic search answers “this looks related”, but codebases require “this **is** related”.
-
-### 4. Unsafe Writes
-
-Text-based edits break syntax, formatting, or builds—especially across multiple files.
-
-Anchor addresses these by acting as a **deterministic authority** instead of a guesser.
+1. `anchor build` — Parses your code with tree-sitter, builds a graph
+2. Agent queries via CLI or MCP
+3. Anchor returns structural facts (not semantic guesses)
 
 ---
 
-## What Anchor Actually Does
+## Supported Languages
 
-Anchor provides **two core capabilities** to agents:
-
-### 1. Perfect Context (The Oracle)
-
-* Builds and maintains a structural graph of the codebase
-* Answers factual questions like:
-
-  * Where is this symbol defined?
-  * What references this file?
-  * What depends on this module?
-
-No guessing. No grep spam.
+- Rust
+- Python
+- JavaScript
+- TypeScript / TSX
 
 ---
 
-### 2. Surgical Hands (The Executor)
+## CLI Commands
 
-* Anchor, not the agent, touches the filesystem
-* Applies:
-
-  * safe refactors
-  * multi-file edits
-  * precise code insertions
-* Uses structural parsing, not text replacement
-
-Agents never directly edit files.
-Anchor guarantees consistency.
+| Command | Description |
+|---------|-------------|
+| `anchor build` | Build/rebuild the code graph |
+| `anchor overview` | Show codebase structure |
+| `anchor search <query>` | Find symbols by name |
+| `anchor context <query>` | Get symbol + dependencies + dependents |
+| `anchor deps <symbol>` | Show dependency relationships |
+| `anchor stats` | Graph statistics |
 
 ---
 
-## How Agents Use Anchor
+## Roadmap
 
-Anchor is **not an AI**.
-It is a **server** that agents query and command.
-
-Typical flow:
-
-1. Agent asks Anchor for context
-2. Anchor returns deterministic structural facts
-3. Agent decides what should change
-4. Agent instructs Anchor to apply changes
-5. Anchor executes safely and atomically
+- [x] Graph engine (petgraph)
+- [x] Tree-sitter parsing (Rust, Python, JS, TS)
+- [x] CLI tools
+- [ ] Graph persistence (save/load)
+- [ ] File watching (real-time updates)
+- [ ] Write capabilities (safe refactors)
+- [ ] MCP server for AI agents
 
 ---
 
-## Scope (v0 / v1)
+## License
 
-Initial versions of Anchor focus on:
-
-* Monorepo only
-* Single language at a time
-* Static structure only
-* Local execution
-
-Cross-repo linking and polyglot support come later.
-
----
-
-## Why Anchor Matters
-
-Anchor turns AI coding from:
-
-> “Read files, guess structure, hope nothing breaks”
-
-into:
-
-> “Query structure, reason safely, execute precisely”
-
-It doesn’t make agents smarter.
-It makes them **grounded**.
-
----
-
-## One-Line Summary
-
-> **Anchor is an Agent Server Protocol that gives AI coding agents a persistent map of the codebase and safe hands to modify it.**
-
+Apache-2.0

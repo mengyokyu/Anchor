@@ -63,6 +63,6 @@ jobs:
             anchor-macos-arm/anchor-macos-arm.tar.gz
             anchor-linux-x64/anchor-linux-x64.tar.gz
           draft: false
-          prerelease: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
