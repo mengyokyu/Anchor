@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 
 use super::types::{ToolDefinition, ToolsCallResult};
 use crate::graph::CodeGraph;
-use crate::query::{anchor_dependencies, anchor_file_symbols, anchor_search, anchor_stats, Query};
+use crate::query::{anchor_dependencies, anchor_file_symbols, anchor_search, anchor_stats, get_context, graph_search, Query};
 
 /// Return the list of all available tools with their JSON schemas.
 pub fn list_tools() -> Vec<ToolDefinition> {
@@ -82,6 +82,40 @@ pub fn list_tools() -> Vec<ToolDefinition> {
                 "required": ["file"]
             }),
         },
+        ToolDefinition {
+            name: "get_context".to_string(),
+            description: "Unified context tool. ONE query returns everything: location, code, dependencies."
+                .to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "Symbol name or file path" },
+                    "intent": { "type": "string", "enum": ["find", "understand", "modify", "refactor", "overview"], "default": "find" }
+                },
+                "required": ["query"]
+            }),
+        },
+        ToolDefinition {
+            name: "search".to_string(),
+            description: "Graph-aware search. Finds by file path OR symbol name, then traverses \
+                connections to return the full subgraph. Use this instead of grep."
+                .to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "File path (e.g., 'tools.rs', 'mcp/') OR symbol name (e.g., 'CodeGraph')"
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "How many hops to traverse in the graph (default: 1)",
+                        "default": 1
+                    }
+                },
+                "required": ["query"]
+            }),
+        },
     ]
 }
 
@@ -92,6 +126,8 @@ pub fn call_tool(graph: &CodeGraph, name: &str, arguments: &Value) -> ToolsCallR
         "anchor_dependencies" => handle_dependencies(graph, arguments),
         "anchor_stats" => handle_stats(graph),
         "anchor_file_symbols" => handle_file_symbols(graph, arguments),
+        "get_context" => handle_get_context(graph, arguments),
+        "search" => handle_graph_search(graph, arguments),
         _ => ToolsCallResult::error(format!("Unknown tool: {}", name)),
     }
 }
@@ -144,6 +180,28 @@ fn handle_file_symbols(graph: &CodeGraph, args: &Value) -> ToolsCallResult {
     };
 
     let response = anchor_file_symbols(graph, file);
+    let json = serde_json::to_string_pretty(&response).unwrap_or_default();
+    ToolsCallResult::text(json)
+}
+
+fn handle_get_context(graph: &CodeGraph, args: &Value) -> ToolsCallResult {
+    let query = match args.get("query").and_then(|v| v.as_str()) {
+        Some(q) => q,
+        None => return ToolsCallResult::error("Missing required parameter: query".to_string()),
+    };
+    let intent = args.get("intent").and_then(|v| v.as_str()).unwrap_or("find");
+    let response = get_context(graph, query, intent);
+    let json = serde_json::to_string_pretty(&response).unwrap_or_default();
+    ToolsCallResult::text(json)
+}
+
+fn handle_graph_search(graph: &CodeGraph, args: &Value) -> ToolsCallResult {
+    let query = match args.get("query").and_then(|v| v.as_str()) {
+        Some(q) => q,
+        None => return ToolsCallResult::error("Missing required parameter: query".to_string()),
+    };
+    let depth = args.get("depth").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+    let response = graph_search(graph, query, depth);
     let json = serde_json::to_string_pretty(&response).unwrap_or_default();
     ToolsCallResult::text(json)
 }
