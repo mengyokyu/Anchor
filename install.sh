@@ -31,8 +31,8 @@ case "$OS" in
     ;;
 esac
 
-# Get latest release
-LATEST=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
+# Get latest release (including pre-releases)
+LATEST=$(curl -fsSL "https://api.github.com/repos/$REPO/releases" | grep '"tag_name"' | head -1 | cut -d'"' -f4)
 
 if [ -z "$LATEST" ]; then
   echo "Failed to get latest release"
