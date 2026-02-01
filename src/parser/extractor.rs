@@ -77,6 +77,37 @@ fn extract_node(
         SupportedLanguage::TypeScript => {
             extract_ts_node(node, source, kind, current_scope, symbols, imports, calls);
         }
+        // New languages use generic extraction
+        SupportedLanguage::Go => {
+            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
+                &["function_declaration", "method_declaration"],
+                &["import_declaration"],
+                &["call_expression"]);
+        }
+        SupportedLanguage::Java => {
+            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
+                &["method_declaration", "class_declaration", "interface_declaration"],
+                &["import_declaration"],
+                &["method_invocation"]);
+        }
+        SupportedLanguage::CSharp => {
+            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
+                &["method_declaration", "class_declaration", "interface_declaration"],
+                &["using_directive"],
+                &["invocation_expression"]);
+        }
+        SupportedLanguage::Ruby => {
+            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
+                &["method", "class", "module"],
+                &["call"],
+                &["call", "method_call"]);
+        }
+        SupportedLanguage::Cpp | SupportedLanguage::Swift => {
+            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
+                &["function_definition", "class_specifier"],
+                &["preproc_include"],
+                &["call_expression"]);
+        }
     }
 
     // Determine if this node creates a new scope for children
@@ -97,6 +128,22 @@ fn extract_node(
                 _ => None,
             }
         }
+        SupportedLanguage::Go => match kind {
+            "function_declaration" | "method_declaration" => node_name(node, source),
+            _ => None,
+        },
+        SupportedLanguage::Java | SupportedLanguage::CSharp => match kind {
+            "method_declaration" | "class_declaration" => node_name(node, source),
+            _ => None,
+        },
+        SupportedLanguage::Ruby => match kind {
+            "method" | "class" | "module" => node_name(node, source),
+            _ => None,
+        },
+        SupportedLanguage::Cpp | SupportedLanguage::Swift => match kind {
+            "function_definition" | "class_specifier" => node_name(node, source),
+            _ => None,
+        },
     };
 
     let scope = new_scope.as_deref().or(current_scope);
@@ -473,6 +520,64 @@ fn extract_ts_node(
             }
         }
         _ => {}
+    }
+}
+
+// ─── Generic Extraction (for new languages) ─────────────────────
+
+/// Generic node extraction for languages without dedicated extractors.
+fn extract_generic_node(
+    node: &Node,
+    source: &[u8],
+    kind: &str,
+    current_scope: Option<&str>,
+    symbols: &mut Vec<ExtractedSymbol>,
+    imports: &mut Vec<ExtractedImport>,
+    calls: &mut Vec<ExtractedCall>,
+    func_kinds: &[&str],
+    import_kinds: &[&str],
+    call_kinds: &[&str],
+) {
+    // Extract functions/methods
+    if func_kinds.contains(&kind) {
+        if let Some(name) = node_name(node, source) {
+            let sym_kind = if current_scope.is_some() {
+                NodeKind::Method
+            } else {
+                NodeKind::Function
+            };
+            symbols.push(ExtractedSymbol {
+                name,
+                kind: sym_kind,
+                line_start: node.start_position().row + 1,
+                line_end: node.end_position().row + 1,
+                code_snippet: bounded_snippet(node, source),
+                parent: current_scope.map(|s| s.to_string()),
+            });
+        }
+    }
+
+    // Extract imports
+    if import_kinds.contains(&kind) {
+        let text = node_text(node, source);
+        imports.push(ExtractedImport {
+            path: text.trim().to_string(),
+            symbols: Vec::new(),
+            line: node.start_position().row + 1,
+        });
+    }
+
+    // Extract calls
+    if call_kinds.contains(&kind) {
+        if let Some(callee_name) = get_call_name(node, source) {
+            if let Some(caller) = current_scope {
+                calls.push(ExtractedCall {
+                    callee: callee_name,
+                    caller: caller.to_string(),
+                    line: node.start_position().row + 1,
+                });
+            }
+        }
     }
 }
 

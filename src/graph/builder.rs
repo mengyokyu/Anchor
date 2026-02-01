@@ -88,6 +88,13 @@ pub fn scan_stats(root: &Path) -> ScanStats {
                 SupportedLanguage::Python => stats.python_files += 1,
                 SupportedLanguage::JavaScript => stats.js_files += 1,
                 SupportedLanguage::TypeScript | SupportedLanguage::Tsx => stats.ts_files += 1,
+                // Other languages counted in total_files only
+                SupportedLanguage::Go
+                | SupportedLanguage::Java
+                | SupportedLanguage::CSharp
+                | SupportedLanguage::Ruby
+                | SupportedLanguage::Cpp
+                | SupportedLanguage::Swift => {}
             }
         }
     }
