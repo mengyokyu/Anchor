@@ -34,6 +34,7 @@ pub mod graph;
 pub mod mcp;
 pub mod parser;
 pub mod query;
+pub mod updater;
 pub mod watcher;
 
 // Re-exports for convenience

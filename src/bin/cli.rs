@@ -10,8 +10,10 @@
 //!   anchor deps <symbol>         # Dependencies
 //!   anchor stats                 # Graph statistics
 //!   anchor build                 # Force rebuild graph
+//!   anchor update                # Update to latest version
 
 use anchor::daemon::{is_daemon_running, send_request, start_daemon, Request, Response};
+use anchor::updater;
 use anchor::{build_graph, get_context, graph_search, anchor_dependencies, anchor_stats, CodeGraph};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -86,6 +88,12 @@ enum Commands {
 
     /// Rebuild the code graph from scratch
     Build,
+
+    /// Update anchor to the latest version
+    Update,
+
+    /// Show current version
+    Version,
 }
 
 #[derive(Subcommand)]
@@ -126,6 +134,8 @@ fn run(cli: Cli) -> Result<()> {
     // No command = show banner and usage
     if cli.command.is_none() {
         print_banner();
+        println!("v{}", updater::VERSION);
+        println!();
         println!("Usage: anchor <COMMAND>");
         println!();
         println!("Commands:");
@@ -136,14 +146,34 @@ fn run(cli: Cli) -> Result<()> {
         println!("  deps      Show dependencies");
         println!("  stats     Show graph statistics");
         println!("  build     Rebuild the code graph");
+        println!("  update    Update to latest version");
+        println!("  version   Show current version");
         println!();
         println!("Run 'anchor --help' for more info.");
+
+        // Check for updates in background
+        updater::notify_if_update_available();
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
         return Ok(());
     }
 
-    // Handle daemon command separately
-    if let Some(Commands::Daemon { action }) = &cli.command {
-        return handle_daemon_command(&root, action.as_ref());
+    // Handle commands that don't need daemon
+    match &cli.command {
+        Some(Commands::Update) => {
+            return updater::update();
+        }
+        Some(Commands::Version) => {
+            println!("anchor v{}", updater::VERSION);
+            if let Some(latest) = updater::check_for_update() {
+                println!("Update available: {}", latest);
+            }
+            return Ok(());
+        }
+        Some(Commands::Daemon { action }) => {
+            return handle_daemon_command(&root, action.as_ref());
+        }
+        _ => {}
     }
 
     // Auto-start daemon if not running (silently)
@@ -238,7 +268,7 @@ fn run_via_daemon(root: &PathBuf, command: Commands) -> Result<()> {
         },
         Commands::Stats => Request::Stats,
         Commands::Build => Request::Rebuild,
-        Commands::Daemon { .. } => unreachable!(),
+        Commands::Daemon { .. } | Commands::Update | Commands::Version => unreachable!(),
     };
 
     match send_request(root, request) {
@@ -317,8 +347,7 @@ fn run_local(root: &PathBuf, command: Commands) -> Result<()> {
         Commands::Context { query, intent } => cmd_context(&graph, &query, &intent),
         Commands::Deps { symbol } => cmd_deps(&graph, &symbol),
         Commands::Stats => cmd_stats(&graph),
-        Commands::Build => unreachable!(),
-        Commands::Daemon { .. } => unreachable!(),
+        Commands::Build | Commands::Daemon { .. } | Commands::Update | Commands::Version => unreachable!(),
     }
 }
 
