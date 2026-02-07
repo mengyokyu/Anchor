@@ -23,8 +23,8 @@ name = "anchor-mcp"
 path = "src/bin/mcp.rs"
 
 [[bin]]
-name = "anchor-bench"
-path = "tests/benchmark.rs"
+name = "write-bench"
+path = "src/bin/write_bench.rs"
 
 [dependencies]
 # Serialization
