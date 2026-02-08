@@ -9,15 +9,24 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tracing::{debug, info, warn};
 
-use crate::graph::engine::CodeGraph;
 use crate::graph::builder::rebuild_file;
+use crate::graph::engine::CodeGraph;
 use crate::parser::SupportedLanguage;
 
 /// Default debounce duration for file events.
 const DEFAULT_DEBOUNCE_MS: u64 = 200;
 
 /// Directories to always ignore.
-const IGNORED_DIRS: &[&str] = &[".git", "target", "node_modules", ".anchor", "__pycache__", ".venv", "dist", "build"];
+const IGNORED_DIRS: &[&str] = &[
+    ".git",
+    "target",
+    "node_modules",
+    ".anchor",
+    "__pycache__",
+    ".venv",
+    "dist",
+    "build",
+];
 
 /// Start watching a directory for file changes, updating the graph in real-time.
 ///
@@ -40,18 +49,23 @@ pub fn start_watching(
 
     let root_owned = root.to_path_buf();
 
-    let mut debouncer = new_debouncer(debounce, move |result: Result<Vec<notify_debouncer_mini::DebouncedEvent>, notify::Error>| {
-        match result {
-            Ok(events) => {
-                handle_events(&events, &graph, &root_owned);
+    let mut debouncer = new_debouncer(
+        debounce,
+        move |result: Result<Vec<notify_debouncer_mini::DebouncedEvent>, notify::Error>| {
+            match result {
+                Ok(events) => {
+                    handle_events(&events, &graph, &root_owned);
+                }
+                Err(e) => {
+                    warn!(error = %e, "file watcher error");
+                }
             }
-            Err(e) => {
-                warn!(error = %e, "file watcher error");
-            }
-        }
-    })?;
+        },
+    )?;
 
-    debouncer.watcher().watch(root, notify::RecursiveMode::Recursive)?;
+    debouncer
+        .watcher()
+        .watch(root, notify::RecursiveMode::Recursive)?;
 
     info!(root = %root.display(), debounce_ms = debounce.as_millis() as u64, "file watcher started");
 

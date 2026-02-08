@@ -38,7 +38,7 @@ pub fn extract_file(path: &Path, source: &str) -> crate::error::Result<FileExtra
         &root,
         source.as_bytes(),
         lang,
-        None, // no parent
+        None,
         &mut symbols,
         &mut imports,
         &mut calls,
@@ -77,36 +77,83 @@ fn extract_node(
         SupportedLanguage::TypeScript => {
             extract_ts_node(node, source, kind, current_scope, symbols, imports, calls);
         }
-        // New languages use generic extraction
         SupportedLanguage::Go => {
-            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
+            extract_generic_node(
+                node,
+                source,
+                kind,
+                current_scope,
+                symbols,
+                imports,
+                calls,
                 &["function_declaration", "method_declaration"],
                 &["import_declaration"],
-                &["call_expression"]);
+                &["call_expression"],
+            );
         }
         SupportedLanguage::Java => {
-            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
-                &["method_declaration", "class_declaration", "interface_declaration"],
+            extract_generic_node(
+                node,
+                source,
+                kind,
+                current_scope,
+                symbols,
+                imports,
+                calls,
+                &[
+                    "method_declaration",
+                    "class_declaration",
+                    "interface_declaration",
+                ],
                 &["import_declaration"],
-                &["method_invocation"]);
+                &["method_invocation"],
+            );
         }
         SupportedLanguage::CSharp => {
-            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
-                &["method_declaration", "class_declaration", "interface_declaration"],
+            extract_generic_node(
+                node,
+                source,
+                kind,
+                current_scope,
+                symbols,
+                imports,
+                calls,
+                &[
+                    "method_declaration",
+                    "class_declaration",
+                    "interface_declaration",
+                ],
                 &["using_directive"],
-                &["invocation_expression"]);
+                &["invocation_expression"],
+            );
         }
         SupportedLanguage::Ruby => {
-            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
+            extract_generic_node(
+                node,
+                source,
+                kind,
+                current_scope,
+                symbols,
+                imports,
+                calls,
                 &["method", "class", "module"],
                 &["call"],
-                &["call", "method_call"]);
+                &["call", "method_call"],
+            );
         }
         SupportedLanguage::Cpp | SupportedLanguage::Swift => {
-            extract_generic_node(node, source, kind, current_scope, symbols, imports, calls,
+            extract_generic_node(
+                node,
+                source,
+                kind,
+                current_scope,
+                symbols,
+                imports,
+                calls,
                 &["function_definition", "class_specifier"],
                 &["preproc_include"],
-                &["call_expression"]);
+                &["call_expression"],
+            );
         }
     }
 
@@ -526,6 +573,7 @@ fn extract_ts_node(
 // ─── Generic Extraction (for new languages) ─────────────────────
 
 /// Generic node extraction for languages without dedicated extractors.
+#[allow(clippy::too_many_arguments)]
 fn extract_generic_node(
     node: &Node,
     source: &[u8],
@@ -592,15 +640,13 @@ fn node_name(node: &Node, source: &[u8]) -> Option<String> {
 
 /// Get the full text of a node.
 fn node_text(node: &Node, source: &[u8]) -> String {
-    node.utf8_text(source)
-        .unwrap_or("")
-        .to_string()
+    node.utf8_text(source).unwrap_or("").to_string()
 }
 
 /// Maximum lines kept in a code snippet.
-const MAX_SNIPPET_LINES: usize = 10;
+const MAX_SNIPPET_LINES: usize = 50;
 /// Maximum bytes kept in a code snippet.
-const MAX_SNIPPET_BYTES: usize = 2048;
+const MAX_SNIPPET_BYTES: usize = 8192;
 
 /// Truncate a code snippet to bounded size (lines and bytes).
 fn bounded_snippet(node: &Node, source: &[u8]) -> String {
@@ -645,13 +691,19 @@ fn get_rust_impl_name(node: &Node, source: &[u8]) -> Option<String> {
     if parts.len() >= 2 {
         if parts.contains(&"for") {
             // impl Trait for Type
-            parts.iter()
+            parts
+                .iter()
                 .position(|&p| p == "for")
                 .and_then(|i| parts.get(i + 1))
                 .map(|s| s.trim_end_matches('{').trim().to_string())
         } else {
             // impl Type
-            Some(parts[1].trim_end_matches('{').trim_end_matches('<').to_string())
+            Some(
+                parts[1]
+                    .trim_end_matches('{')
+                    .trim_end_matches('<')
+                    .to_string(),
+            )
         }
     } else {
         None
@@ -666,11 +718,7 @@ fn get_call_name(node: &Node, source: &[u8]) -> Option<String> {
     // Handle method calls: obj.method() -> "method"
     // Handle simple calls: func() -> "func"
     // Handle namespaced: mod::func() -> "func"
-    let name = text
-        .rsplit(['.', ':'])
-        .next()
-        .unwrap_or(text)
-        .trim();
+    let name = text.rsplit(['.', ':']).next().unwrap_or(text).trim();
 
     if name.is_empty() {
         None

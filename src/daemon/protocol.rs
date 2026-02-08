@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "command")]
 pub enum Request {
+    // ─── Read Operations ───────────────────────────────────────
     /// Search for symbols/files
     #[serde(rename = "search")]
     Search { query: String, depth: usize },
@@ -26,6 +27,37 @@ pub enum Request {
     #[serde(rename = "overview")]
     Overview,
 
+    // ─── Write Operations (with locking) ───────────────────────
+    /// Create a new file (with lock)
+    #[serde(rename = "create")]
+    Create { path: String, content: String },
+
+    /// Insert content after pattern (with lock)
+    #[serde(rename = "insert")]
+    Insert {
+        path: String,
+        pattern: String,
+        content: String,
+    },
+
+    /// Replace content (with lock)
+    #[serde(rename = "replace")]
+    Replace {
+        path: String,
+        old: String,
+        new: String,
+    },
+
+    // ─── Lock Management ───────────────────────────────────────
+    /// Check lock status for a file
+    #[serde(rename = "lock_status")]
+    LockStatus { path: String },
+
+    /// Get all active locks
+    #[serde(rename = "locks")]
+    Locks,
+
+    // ─── System ────────────────────────────────────────────────
     /// Force rebuild the graph
     #[serde(rename = "rebuild")]
     Rebuild,
@@ -68,6 +100,8 @@ impl Response {
     }
 
     pub fn error(msg: impl Into<String>) -> Self {
-        Response::Error { message: msg.into() }
+        Response::Error {
+            message: msg.into(),
+        }
     }
 }

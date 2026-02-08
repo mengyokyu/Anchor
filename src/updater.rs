@@ -62,11 +62,7 @@ fn get_latest_version() -> Result<String> {
 
 /// Compare version strings (simple semver comparison).
 fn version_is_newer(latest: &str, current: &str) -> bool {
-    let parse = |v: &str| -> Vec<u32> {
-        v.split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect()
-    };
+    let parse = |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
 
     let latest_parts = parse(latest);
     let current_parts = parse(current);
@@ -98,17 +94,20 @@ pub fn update() -> Result<()> {
     let response = client.get(&url).send()?;
 
     if response.status() == 404 {
-        println!("No releases found. You're on the latest version (v{}).", VERSION);
+        println!(
+            "No releases found. You're on the latest version (v{}).",
+            VERSION
+        );
         return Ok(());
     }
 
-    let releases: Vec<GitHubRelease> = response.json().map_err(|_| {
-        anyhow::anyhow!("No releases available yet. You're on v{}.", VERSION)
-    })?;
+    let releases: Vec<GitHubRelease> = response
+        .json()
+        .map_err(|_| anyhow::anyhow!("No releases available yet. You're on v{}.", VERSION))?;
 
-    let release = releases.first().ok_or_else(|| {
-        anyhow::anyhow!("No releases available yet. You're on v{}.", VERSION)
-    })?;
+    let release = releases
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("No releases available yet. You're on v{}.", VERSION))?;
 
     // Check if we're already on the latest version
     let latest_clean = release.tag_name.trim_start_matches('v');
@@ -119,7 +118,9 @@ pub fn update() -> Result<()> {
 
     // Determine which asset to download based on platform
     let asset_name = get_asset_name();
-    let asset = release.assets.iter()
+    let asset = release
+        .assets
+        .iter()
         .find(|a| a.name.contains(&asset_name))
         .ok_or_else(|| anyhow::anyhow!("No compatible release found for this platform"))?;
 
@@ -162,7 +163,20 @@ pub fn update() -> Result<()> {
     // Cleanup
     let _ = fs::remove_dir_all(&temp_dir);
 
-    println!("Updated to {}!", release.tag_name);
+    // Show banner on successful update
+    println!(
+        r#"
+ █████╗ ███╗   ██╗ ██████╗██╗  ██╗ ██████╗ ██████╗
+██╔══██╗████╗  ██║██╔════╝██║  ██║██╔═══██╗██╔══██╗
+███████║██╔██╗ ██║██║     ███████║██║   ██║██████╔╝
+██╔══██║██║╚██╗██║██║     ██╔══██║██║   ██║██╔══██╗
+██║  ██║██║ ╚████║╚██████╗██║  ██║╚██████╔╝██║  ██║
+╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝
+
+        Updated to {}!
+"#,
+        release.tag_name
+    );
     Ok(())
 }
 
@@ -211,7 +225,10 @@ pub fn notify_if_update_available() {
     // Run check in background to not slow down CLI
     std::thread::spawn(|| {
         if let Some(version) = check_for_update() {
-            eprintln!("\n  New version available: {}. Run 'anchor update' to upgrade.\n", version);
+            eprintln!(
+                "\n  New version available: {}. Run 'anchor update' to upgrade.\n",
+                version
+            );
         }
     });
 }

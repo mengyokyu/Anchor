@@ -34,6 +34,8 @@ claude_life_assistant/
 *.spec
 
 # Installer logs
+.CLAUDE.md.swp
+CLAUDE.md
 pip-log.txt
 pip-delete-this-directory.txt
 
