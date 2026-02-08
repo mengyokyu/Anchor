@@ -39,7 +39,7 @@ jobs:
       - name: Package (Unix)
         run: |
           cd target/${{ matrix.target }}/release
-          tar -czvf ../../../${{ matrix.name }}.tar.gz anchor anchor-mcp
+          tar -czvf ../../../${{ matrix.name }}.tar.gz anchor
           cd ../../..
 
       - name: Upload artifact
